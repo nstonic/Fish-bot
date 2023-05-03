@@ -90,16 +90,14 @@ def add_product_to_cart(product: dict, quantity: int, cart: dict, api_token: str
     url = f'https://api.moltin.com/v2/carts/:{cart["data"]["id"]}/items'
     headers = {
         'Authorization': api_token,
-        'x-moltin-customer-token': customer_token,
-        'ep-channel': 'ya.ru',
-        'ep-context-tag': 'fish'
+        'x-moltin-customer-token': customer_token
     }
-    body = {'data': {
+    payload = {'data': {
         'quantity': quantity,
         'type': 'cart_item',
         'id': product['id']
     }}
-    response = requests.post(url, json=body, headers=headers)
+    response = requests.post(url, json=payload, headers=headers)
     response.raise_for_status()
     return response.json()
 
