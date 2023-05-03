@@ -14,6 +14,16 @@ def get_all_products(api_token: str) -> dict:
     return response.json()
 
 
+def get_product(api_token: str, product_id: str) -> dict:
+    url = f'https://api.moltin.com/pcm/products/{product_id}'
+    headers = {
+        'Authorization': api_token
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+
 def get_token(client_id: str, client_secret: str) -> dict:
     url = 'https://api.moltin.com/oauth/access_token'
     data = {
@@ -22,16 +32,6 @@ def get_token(client_id: str, client_secret: str) -> dict:
         'grant_type': 'client_credentials'
     }
     response = requests.post(url, data=data)
-    response.raise_for_status()
-    return response.json()
-
-
-def get_all_customers(api_token: str):
-    url = 'https://api.moltin.com/v2/customers'
-    headers = {
-        'Authorization': api_token
-    }
-    response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()
 
@@ -62,14 +62,11 @@ def get_cart(api_token: str, cart_ref: str):
     return response.json()
 
 
-def get_carts(api_token: str, customer_id: str = None):
-    url = 'https://api.moltin.com/v2/carts'
+def get_cart_items(api_token: str, cart_ref: str):
+    url = f'https://api.moltin.com/v2/carts/:{cart_ref}/items'
     headers = {
         'Authorization': api_token
     }
-    if customer_id:
-        headers['x-moltin-customer-token'] = customer_id
-
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()
@@ -86,8 +83,8 @@ def create_cart(api_token: str, customer_token: str):
     return response.json()
 
 
-def add_product_to_cart(product: dict, quantity: int, cart: dict, api_token: str, customer_token: str):
-    url = f'https://api.moltin.com/v2/carts/:{cart["data"]["id"]}/items'
+def add_product_to_cart(product: dict, quantity: int, cart_ref: dict, api_token: str, customer_token: str):
+    url = f'https://api.moltin.com/v2/carts/:{cart_ref}/items'
     headers = {
         'Authorization': api_token,
         'x-moltin-customer-token': customer_token
@@ -116,12 +113,16 @@ def main():
     )
 
     all_products = get_all_products(token)
-    pprint(add_product_to_cart(
-        cart=cart,
+    add_product_to_cart(
+        cart_ref=cart["data"]["id"],
         product=all_products['data'][0],
         quantity=1,
         api_token=token,
         customer_token=customer_token
+    )
+    pprint(get_cart_items(
+        api_token=token,
+        cart_ref=cart["data"]["id"]
     ))
 
 
