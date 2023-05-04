@@ -1,6 +1,4 @@
-from datetime import datetime
 from io import BytesIO
-from pprint import pprint
 
 import redis
 from environs import Env
@@ -9,14 +7,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Filters, Updater, CallbackContext
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
-from moltin_api import get_token, get_all_products, get_product, fetch_image, make_order
+from moltin_api import MoltinApiClient
 
 _database = None
-_moltin_token = None
+_moltin = None
 
 
-def start(update: Update, context: CallbackContext, moltin_token):
-    all_products = get_all_products(api_token=moltin_token)['data']
+def start(update: Update, context: CallbackContext, moltin: MoltinApiClient):
+    all_products = moltin.get_all_products()['data']
     keyboard = [
         [InlineKeyboardButton(product['attributes']['name'], callback_data=product['id'])]
         for product in all_products
@@ -30,19 +28,11 @@ def start(update: Update, context: CallbackContext, moltin_token):
     return 'HANDLE_MENU'
 
 
-def handle_menu(update: Update, context: CallbackContext, moltin_token):
+def handle_menu(update: Update, context: CallbackContext, moltin: MoltinApiClient):
     query = update.callback_query
-    context.bot.answer_callback_query(
-        callback_query_id=query.id
-    )
-    product = get_product(
-        api_token=moltin_token,
-        product_id=query.data
-    )['data']
-    image = fetch_image(
-        api_token=moltin_token,
-        product_id=query.data
-    )
+    context.bot.answer_callback_query(callback_query_id=query.id)
+    product = moltin.get_product(product_id=query.data)['data']
+    image = moltin.fetch_image(product_id=query.data)
     text = f'{product["attributes"]["name"]}\n\n{product["attributes"]["description"]}'
     keyboard = [
         [InlineKeyboardButton(f'{kg} кг', callback_data=f'buy_{product["id"]}_{kg}')
@@ -63,23 +53,13 @@ def handle_menu(update: Update, context: CallbackContext, moltin_token):
     return 'HANDLE_DESCRIPTION'
 
 
-def handle_description(update: Update, context: CallbackContext, moltin_token):
+def handle_description(update: Update, context: CallbackContext, moltin: MoltinApiClient):
     query = update.callback_query
     if query.data == 'menu':
-        return start(update, context, moltin_token)
+        return start(update, context, moltin)
     elif query.data.startswith('buy_'):
         _, product_id, quantity = query.data.split('_')
 
-        context.bot.answer_callback_query(
-            callback_query_id=query.id
-        )
-        pprint(
-            make_order(
-                api_token=moltin_token,
-                product_id=product_id,
-                quantity=int(quantity)
-            )
-        )
         return
 
 
@@ -104,14 +84,19 @@ def handle_users_reply(update, context):
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description
     }
+
     state_handler = states_functions.get(user_state, start)
-    next_state = state_handler(update, context, moltin_token=get_moltin_token()) or user_state
+    next_state = state_handler(
+        update=update,
+        context=context,
+        moltin=get_moltin_client()
+    ) or user_state
     db.set(chat_id, next_state)
 
 
 def get_database_connection():
     global _database
-    if _database is None:
+    if not _database:
         database_password = env('REDIS_PASSWORD')
         database_host = env('REDIS_URL')
         database_port = env('REDIS_PORT')
@@ -119,15 +104,14 @@ def get_database_connection():
     return _database
 
 
-def get_moltin_token():
-    global _moltin_token
-    now_timestamp = datetime.now().timestamp()
-    if not _moltin_token or now_timestamp - _moltin_token['expires'] < 100:
-        _moltin_token = get_token(
+def get_moltin_client():
+    global _moltin
+    if not _moltin:
+        _moltin = MoltinApiClient(
             client_id=env('CLIENT_ID'),
             client_secret=env('CLIENT_SECRET')
         )
-    return _moltin_token['access_token']
+    return _moltin
 
 
 def main():
