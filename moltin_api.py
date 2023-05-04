@@ -8,9 +8,9 @@ class MoltinApiClient:
     def __init__(self, client_id, client_secret):
         self._client_id = client_id
         self._client_secret = client_secret
-        self._token_obj = self.get_token()
+        self._token_obj = self._get_token()
 
-    def get_token(self) -> dict:
+    def _get_token(self) -> dict:
         now_timestamp = datetime.now().timestamp()
         if not hasattr(self, '_token_obj') or now_timestamp - self._token_obj['expires'] < 300:
             url = 'https://api.moltin.com/oauth/access_token'
@@ -28,7 +28,7 @@ class MoltinApiClient:
     def get_all_products(self) -> dict:
         url = 'https://api.moltin.com/pcm/products'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         response = requests.get(url, headers=headers)
         check_response(response)
@@ -37,33 +37,15 @@ class MoltinApiClient:
     def get_product(self, product_id: str) -> dict:
         url = f'https://api.moltin.com/pcm/products/{product_id}'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         response = requests.get(url, headers=headers)
         check_response(response)
         return response.json()
 
-    def get_image_relationships(self, product_id: str) -> dict:
-        url = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main_image'
-        headers = {
-            'Authorization': self.get_token()['access_token']
-        }
-        response = requests.get(url, headers=headers)
-        check_response(response)
-        return response.json()
-
-    def get_file_url_by_id(self, file_id: str) -> str:
-        url = f'https://api.moltin.com/v2/files/{file_id}'
-        headers = {
-            'Authorization': self.get_token()['access_token']
-        }
-        response = requests.get(url, headers=headers)
-        check_response(response)
-        return response.json()['data']['link']['href']
-
-    def fetch_image(self, product_id: str):
-        image_id = self.get_image_relationships(product_id)['data']['id']
-        image_url = self.get_file_url_by_id(image_id)
+    def fetch_image(self, product_id: str) -> bytes:
+        image_id = self._get_image_relationships(product_id)['data']['id']
+        image_url = self._get_file_url_by_id(image_id)
         response = requests.get(image_url)
         response.raise_for_status()
         return response.content
@@ -71,7 +53,7 @@ class MoltinApiClient:
     def create_customer(self, email: str) -> dict:
         url = 'https://api.moltin.com/v2/customers'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         payload = {'data': {
             'type': 'customer',
@@ -83,10 +65,10 @@ class MoltinApiClient:
         check_response(response)
         return response.json()
 
-    def get_customer(self, customer_id: str):
+    def get_customer(self, customer_id: str) -> dict:
         url = f'https://api.moltin.com/v2/customers/{customer_id}'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         response = requests.post(url, headers=headers)
         check_response(response)
@@ -95,7 +77,7 @@ class MoltinApiClient:
     def get_customer_token(self, customer_email: str) -> str:
         url = 'https://api.moltin.com/v2/customers/tokens'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         payload = {'data': {
             'type': 'token',
@@ -107,10 +89,10 @@ class MoltinApiClient:
         check_response(response)
         return response.json()['data']['token']
 
-    def get_customers_cart(self, customer_token: str):
+    def get_customers_cart(self, customer_token: str) -> dict:
         url = 'https://api.moltin.com/v2/carts'
         headers = {
-            'Authorization': self.get_token()['access_token'],
+            'Authorization': self._get_token()['access_token'],
             'x-moltin-customer-token': customer_token
         }
         response = requests.get(url, headers=headers)
@@ -120,26 +102,26 @@ class MoltinApiClient:
     def get_cart_items(self, cart_ref: str) -> dict:
         url = f'https://api.moltin.com/v2/carts/{cart_ref}/items'
         headers = {
-            'Authorization': self.get_token()['access_token']
+            'Authorization': self._get_token()['access_token']
         }
         response = requests.get(url, headers=headers)
         check_response(response)
         return response.json()
 
-    def create_cart(self, customer_token: str):
+    def create_cart(self, customer_token: str) -> dict:
         url = 'https://api.moltin.com/v2/carts'
         headers = {
-            'Authorization': self.get_token()['access_token'],
+            'Authorization': self._get_token()['access_token'],
             'x-moltin-customer-token': customer_token
         }
         response = requests.post(url, json={'data': {'name': 'Cart'}}, headers=headers)
         check_response(response)
         return response.json()
 
-    def add_product_to_cart(self, product_id: str, quantity: int, cart_ref: str, customer_token: str):
+    def add_product_to_cart(self, product_id: str, quantity: int, cart_ref: str, customer_token: str) -> dict:
         url = f'https://api.moltin.com/v2/carts/{cart_ref}/items'
         headers = {
-            'Authorization': self.get_token()['access_token'],
+            'Authorization': self._get_token()['access_token'],
             'x-moltin-customer-token': customer_token
         }
         payload = {'data': {
@@ -150,6 +132,24 @@ class MoltinApiClient:
         response = requests.post(url, json=payload, headers=headers)
         check_response(response)
         return response.json()
+
+    def _get_image_relationships(self, product_id: str) -> dict:
+        url = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main_image'
+        headers = {
+            'Authorization': self._get_token()['access_token']
+        }
+        response = requests.get(url, headers=headers)
+        check_response(response)
+        return response.json()
+
+    def _get_file_url_by_id(self, file_id: str) -> str:
+        url = f'https://api.moltin.com/v2/files/{file_id}'
+        headers = {
+            'Authorization': self._get_token()['access_token']
+        }
+        response = requests.get(url, headers=headers)
+        check_response(response)
+        return response.json()['data']['link']['href']
 
 
 def check_response(response: requests.Response):
