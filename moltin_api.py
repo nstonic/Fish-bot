@@ -10,21 +10,6 @@ class MoltinApiClient:
         self._client_secret = client_secret
         self._token_obj = self._get_token()
 
-    def _get_token(self) -> dict:
-        now_timestamp = datetime.now().timestamp()
-        if not hasattr(self, '_token_obj') or now_timestamp - self._token_obj['expires'] < 300:
-            url = 'https://api.moltin.com/oauth/access_token'
-            data = {
-                'client_id': self._client_id,
-                'client_secret': self._client_secret,
-                'grant_type': 'client_credentials'
-            }
-            response = requests.post(url, data=data)
-            check_response(response)
-            return response.json()
-        else:
-            return self._token_obj
-
     def get_all_products(self) -> dict:
         url = 'https://api.moltin.com/pcm/products'
         headers = {
@@ -74,7 +59,67 @@ class MoltinApiClient:
         check_response(response)
         return response.json()
 
-    def get_customer_token(self, customer_email: str) -> str:
+    def get_customers_cart(self, customer_email: str) -> dict:
+        url = 'https://api.moltin.com/v2/carts'
+        headers = {
+            'Authorization': self._get_token()['access_token'],
+            'x-moltin-customer-token': self._get_customer_token(customer_email)
+        }
+        response = requests.get(url, headers=headers)
+        check_response(response)
+        return response.json()
+
+    def get_cart_items(self, cart_id: str) -> dict:
+        url = f'https://api.moltin.com/v2/carts/{cart_id}/items'
+        headers = {
+            'Authorization': self._get_token()['access_token']
+        }
+        response = requests.get(url, headers=headers)
+        check_response(response)
+        return response.json()
+
+    def create_cart(self, customer_email: str) -> dict:
+        url = 'https://api.moltin.com/v2/carts'
+        headers = {
+            'Authorization': self._get_token()['access_token'],
+            'x-moltin-customer-token': self._get_customer_token(customer_email)
+        }
+        response = requests.post(url, json={'data': {'name': 'Cart'}}, headers=headers)
+        check_response(response)
+        return response.json()
+
+    def add_product_to_cart(self, product_id: str, quantity: int, customer_email: str) -> dict:
+        cart_id = self.get_customers_cart(customer_email)['data'][0]['id']
+        url = f'https://api.moltin.com/v2/carts/{cart_id}/items'
+        headers = {
+            'Authorization': self._get_token()['access_token'],
+            'x-moltin-customer-token': self._get_customer_token(customer_email)
+        }
+        payload = {'data': {
+            'quantity': quantity,
+            'type': 'cart_item',
+            'id': product_id
+        }}
+        response = requests.post(url, json=payload, headers=headers)
+        check_response(response)
+        return response.json()
+
+    def _get_token(self) -> dict:
+        now_timestamp = datetime.now().timestamp()
+        if not hasattr(self, '_token_obj') or now_timestamp - self._token_obj['expires'] < 300:
+            url = 'https://api.moltin.com/oauth/access_token'
+            data = {
+                'client_id': self._client_id,
+                'client_secret': self._client_secret,
+                'grant_type': 'client_credentials'
+            }
+            response = requests.post(url, data=data)
+            check_response(response)
+            return response.json()
+        else:
+            return self._token_obj
+
+    def _get_customer_token(self, customer_email: str) -> str:
         url = 'https://api.moltin.com/v2/customers/tokens'
         headers = {
             'Authorization': self._get_token()['access_token']
@@ -88,50 +133,6 @@ class MoltinApiClient:
         response = requests.post(url, headers=headers, json=payload)
         check_response(response)
         return response.json()['data']['token']
-
-    def get_customers_cart(self, customer_token: str) -> dict:
-        url = 'https://api.moltin.com/v2/carts'
-        headers = {
-            'Authorization': self._get_token()['access_token'],
-            'x-moltin-customer-token': customer_token
-        }
-        response = requests.get(url, headers=headers)
-        check_response(response)
-        return response.json()
-
-    def get_cart_items(self, cart_ref: str) -> dict:
-        url = f'https://api.moltin.com/v2/carts/{cart_ref}/items'
-        headers = {
-            'Authorization': self._get_token()['access_token']
-        }
-        response = requests.get(url, headers=headers)
-        check_response(response)
-        return response.json()
-
-    def create_cart(self, customer_token: str) -> dict:
-        url = 'https://api.moltin.com/v2/carts'
-        headers = {
-            'Authorization': self._get_token()['access_token'],
-            'x-moltin-customer-token': customer_token
-        }
-        response = requests.post(url, json={'data': {'name': 'Cart'}}, headers=headers)
-        check_response(response)
-        return response.json()
-
-    def add_product_to_cart(self, product_id: str, quantity: int, cart_ref: str, customer_token: str) -> dict:
-        url = f'https://api.moltin.com/v2/carts/{cart_ref}/items'
-        headers = {
-            'Authorization': self._get_token()['access_token'],
-            'x-moltin-customer-token': customer_token
-        }
-        payload = {'data': {
-            'quantity': quantity,
-            'type': 'cart_item',
-            'id': product_id
-        }}
-        response = requests.post(url, json=payload, headers=headers)
-        check_response(response)
-        return response.json()
 
     def _get_image_relationships(self, product_id: str) -> dict:
         url = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main_image'
