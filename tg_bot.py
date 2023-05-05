@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 
 from environs import Env
@@ -7,8 +8,11 @@ from telegram.ext import Filters, Updater, CallbackContext
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
 from helpers import parse_cart
+from logger import TGLoggerHandler
 from moltin_api import MoltinApiClient
 from redis_client import RedisClient
+
+tg_logger = logging.getLogger('TG_logger')
 
 
 def start(update: Update, context: CallbackContext):
@@ -204,6 +208,10 @@ def handle_users_reply(update: Update, context: CallbackContext):
     db.client.set(chat_id, next_state)
 
 
+def error_handler(update: Update, context: CallbackContext):
+    tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
+
+
 def main():
     env = Env()
     env.read_env()
@@ -218,11 +226,19 @@ def main():
         client_secret=env('CLIENT_SECRET'),
         price_book_id=env('PRICE_BOOK_ID')
     )
+
+    tg_logger.setLevel(logging.WARNING)
+    tg_logger.addHandler(TGLoggerHandler(
+        tg_token=env('TG_ADMIN_TOKEN'),
+        chat_id=env('TG_ADMIN_ID'),
+    ))
+
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply))
+    dispatcher.add_error_handler(error_handler)
     updater.start_polling()
     updater.idle()
 
