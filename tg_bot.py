@@ -18,7 +18,6 @@ tg_logger = logging.getLogger('TG_logger')
 def show_cart(update: Update, context: CallbackContext):
     moltin = MoltinApiClient()
     db = RedisClient()
-
     query = update.callback_query
     customer_id = db.client.get(f'customer_{query.from_user.id}')
     cart = None
@@ -27,11 +26,11 @@ def show_cart(update: Update, context: CallbackContext):
         customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
         cart = moltin.get_current_cart(customer['data']['email'])
         for product in cart['data']:
-            keyboard.insert(
-                0,
-                [InlineKeyboardButton(f'Убрать из корзины {product["name"]}',
-                                      callback_data=f'del_{product["id"]}')]
+            button = InlineKeyboardButton(
+                f'Убрать из корзины {product["name"]}',
+                callback_data=f'del_{product["id"]}'
             )
+            keyboard.insert(0, [button])
 
     context.bot.answer_callback_query(
         callback_query_id=query.id
@@ -83,7 +82,6 @@ def show_product(update: Update, context: CallbackContext):
 def add_product_to_cart(update: Update, context: CallbackContext):
     moltin = MoltinApiClient()
     db = RedisClient()
-
     query = update.callback_query
     user_id = query.from_user.id
     customer_id = db.client.get(f'customer_{user_id}')
@@ -107,6 +105,21 @@ def add_product_to_cart(update: Update, context: CallbackContext):
         text='Добавлено в корзину'
     )
     return start(update, context)
+
+
+def delete_product_from_cart(update: Update, context: CallbackContext):
+    moltin = MoltinApiClient()
+    db = RedisClient()
+    query = update.callback_query
+    product_id = query.data.lstrip('del_')
+    customer_id = db.client.get(f'customer_{query.from_user.id}')
+    customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
+    cart_id = moltin.get_current_cart_id(customer['data']['email'])
+    moltin.delete_product_from_cart(
+        cart_id=cart_id,
+        product_id=product_id
+    )
+    return show_cart(update, context)
 
 
 def start(update: Update, context: CallbackContext):
@@ -150,22 +163,11 @@ def handle_menu(update: Update, context: CallbackContext):
 
 
 def handle_cart(update: Update, context: CallbackContext):
-    moltin = MoltinApiClient()
-    db = RedisClient()
     query = update.callback_query
     if query.data == 'menu':
         return start(update, context)
     elif query.data.startswith('del_'):
-        product_id = query.data.lstrip('del_')
-        customer_id = db.client.get(f'customer_{query.from_user.id}')
-        customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
-        cart_id = moltin.get_current_cart_id(customer['data']['email'])
-        moltin.delete_product_from_cart(
-            cart_id=cart_id,
-            product_id=product_id
-        )
-        update.callback_query.data = 'cart'
-        return handle_menu(update, context)
+        return delete_product_from_cart(update, context)
 
 
 def handle_description(update: Update, context: CallbackContext):
