@@ -12,4 +12,4 @@ def parse_cart(cart: dict) -> str:
             total_cost += cost
             products.append(f'{name} - {quantity}кг\nЦена: {price}₽\nСумма: {cost}₽')
         products_text = '\n\n'.join(products)
-    return f'Ваша корзина:\n\n{products_text}\n\nОбщая стоимость: {total_cost}₽'
+    return f'<b>Ваша корзина:</b>\n\n{products_text}\n\n<b>Общая стоимость:</b> {total_cost}₽'

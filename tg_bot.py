@@ -1,5 +1,4 @@
 from io import BytesIO
-from pprint import pprint
 
 from environs import Env
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -68,6 +67,7 @@ def handle_menu(update: Update, context: CallbackContext):
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=parse_cart(cart),
+            parse_mode='HTML',
             reply_markup=keyboard_markup
         )
         context.bot.delete_message(
