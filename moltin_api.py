@@ -70,18 +70,6 @@ class MoltinApiClient:
         response.raise_for_status()
         return response.content
 
-    def _get_price_book(self) -> dict:
-        url = f'https://api.moltin.com/pcm/pricebooks/{self._price_book_id}'
-        headers = {
-            'Authorization': self._get_token()['access_token']
-        }
-        params = {
-            'include': 'prices'
-        }
-        response = requests.get(url, headers=headers, params=params)
-        check_response(response)
-        return response.json()
-
     def create_customer(self, email: str) -> dict:
         url = 'https://api.moltin.com/v2/customers'
         headers = {
@@ -137,16 +125,6 @@ class MoltinApiClient:
         cart_id = self.get_current_cart_id(customer_email)
         return self.get_cart_items(cart_id)
 
-    def _create_cart(self, customer_email: str) -> dict:
-        url = 'https://api.moltin.com/v2/carts'
-        headers = {
-            'Authorization': self._get_token()['access_token'],
-            'x-moltin-customer-token': self._get_customer_token(customer_email)
-        }
-        response = requests.post(url, json={'data': {'name': 'Cart'}}, headers=headers)
-        check_response(response)
-        return response.json()
-
     def add_product_to_cart(self, product_id: str, quantity: int, customer_email: str) -> str:
         cart_id = self.get_current_cart_id(customer_email)
         url = f'https://api.moltin.com/v2/carts/{cart_id}/items'
@@ -170,6 +148,16 @@ class MoltinApiClient:
         }
         response = requests.delete(url, headers=headers)
         check_response(response)
+
+    def _create_cart(self, customer_email: str) -> dict:
+        url = 'https://api.moltin.com/v2/carts'
+        headers = {
+            'Authorization': self._get_token()['access_token'],
+            'x-moltin-customer-token': self._get_customer_token(customer_email)
+        }
+        response = requests.post(url, json={'data': {'name': 'Cart'}}, headers=headers)
+        check_response(response)
+        return response.json()
 
     def _get_customer_token(self, customer_email: str) -> str:
         url = 'https://api.moltin.com/v2/customers/tokens'
@@ -203,6 +191,18 @@ class MoltinApiClient:
         response = requests.get(url, headers=headers)
         check_response(response)
         return response.json()['data']['link']['href']
+
+    def _get_price_book(self) -> dict:
+        url = f'https://api.moltin.com/pcm/pricebooks/{self._price_book_id}'
+        headers = {
+            'Authorization': self._get_token()['access_token']
+        }
+        params = {
+            'include': 'prices'
+        }
+        response = requests.get(url, headers=headers, params=params)
+        check_response(response)
+        return response.json()
 
 
 def check_response(response: requests.Response):
