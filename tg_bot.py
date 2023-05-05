@@ -15,10 +15,107 @@ from redis_client import RedisClient
 tg_logger = logging.getLogger('TG_logger')
 
 
+def show_cart(update: Update, context: CallbackContext):
+    moltin = MoltinApiClient()
+    db = RedisClient()
+
+    query = update.callback_query
+    customer_id = db.client.get(f'customer_{query.from_user.id}')
+    cart = None
+    keyboard = [[InlineKeyboardButton('В меню', callback_data='menu')]]
+    if customer_id:
+        customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
+        cart = moltin.get_current_cart(customer['data']['email'])
+        for product in cart['data']:
+            keyboard.insert(
+                0,
+                [InlineKeyboardButton(f'Убрать из корзины {product["name"]}',
+                                      callback_data=f'del_{product["id"]}')]
+            )
+
+    context.bot.answer_callback_query(
+        callback_query_id=query.id
+    )
+    keyboard_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=parse_cart(cart),
+        parse_mode='HTML',
+        reply_markup=keyboard_markup
+    )
+    context.bot.delete_message(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+    )
+    return 'HANDLE_CART'
+
+
+def show_product(update: Update, context: CallbackContext):
+    moltin = MoltinApiClient()
+    query = update.callback_query
+    product = moltin.get_product_with_price(product_id=query.data)['data']
+    image = moltin.fetch_image(product_id=query.data)
+    text = f'{product["attributes"]["name"]} - {product["price"]}₽\n\n{product["attributes"]["description"]}'
+
+    context.bot.answer_callback_query(
+        callback_query_id=query.id
+    )
+
+    keyboard = [
+        [InlineKeyboardButton(f'{kg} кг', callback_data=f'buy_{product["id"]}_{kg}')
+         for kg in [1, 5, 10]],
+        [InlineKeyboardButton('Назад', callback_data='menu')]
+    ]
+    keyboard_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_photo(
+        chat_id=query.message.chat_id,
+        photo=BytesIO(image),
+        caption=text,
+        reply_markup=keyboard_markup
+    )
+    context.bot.delete_message(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+    )
+    return 'HANDLE_DESCRIPTION'
+
+
+def add_product_to_cart(update: Update, context: CallbackContext):
+    moltin = MoltinApiClient()
+    db = RedisClient()
+
+    query = update.callback_query
+    user_id = query.from_user.id
+    customer_id = db.client.get(f'customer_{user_id}')
+    if not customer_id:
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Похоже вы еще ничего не покупали в Fish-shop. Для создания первого заказа пришлите ваш email.'
+        )
+        return 'HANDLE_EMAIL'
+    else:
+        customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
+
+    _, product_id, quantity = query.data.split('_')
+    moltin.add_product_to_cart(
+        product_id=product_id,
+        quantity=int(quantity),
+        customer_email=customer['data']['email']
+    )
+    context.bot.answer_callback_query(
+        callback_query_id=query.id,
+        text='Добавлено в корзину'
+    )
+    return start(update, context)
+
+
 def start(update: Update, context: CallbackContext):
     moltin = MoltinApiClient()
     all_products = moltin.get_all_products()['data']
     if update.callback_query:
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id
+        )
         message_id = update.callback_query.message.message_id
     elif update.message:
         message_id = update.message.message_id
@@ -46,61 +143,10 @@ def start(update: Update, context: CallbackContext):
 
 
 def handle_menu(update: Update, context: CallbackContext):
-    moltin = MoltinApiClient()
-    db = RedisClient()
-
-    query = update.callback_query
-    if query.data == 'cart':
-        customer_id = db.client.get(f'customer_{query.from_user.id}')
-        cart = None
-        keyboard = [[InlineKeyboardButton('В меню', callback_data='menu')]]
-        if customer_id:
-            customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
-            cart = moltin.get_current_cart(customer['data']['email'])
-            for product in cart['data']:
-                keyboard.insert(
-                    0,
-                    [InlineKeyboardButton(f'Убрать из корзины {product["name"]}',
-                                          callback_data=f'del_{product["id"]}')]
-                )
-
-        context.bot.answer_callback_query(
-            callback_query_id=query.id
-        )
-        keyboard_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=parse_cart(cart),
-            parse_mode='HTML',
-            reply_markup=keyboard_markup
-        )
-        context.bot.delete_message(
-            chat_id=query.message.chat_id,
-            message_id=query.message.message_id,
-        )
-        return 'HANDLE_CART'
-
-    context.bot.answer_callback_query(callback_query_id=query.id)
-    product = moltin.get_product_with_price(product_id=query.data)['data']
-    image = moltin.fetch_image(product_id=query.data)
-    text = f'{product["attributes"]["name"]} - {product["price"]}₽\n\n{product["attributes"]["description"]}'
-    keyboard = [
-        [InlineKeyboardButton(f'{kg} кг', callback_data=f'buy_{product["id"]}_{kg}')
-         for kg in [1, 5, 10]],
-        [InlineKeyboardButton('Назад', callback_data='menu')]
-    ]
-    keyboard_markup = InlineKeyboardMarkup(keyboard)
-    context.bot.send_photo(
-        chat_id=query.message.chat_id,
-        photo=BytesIO(image),
-        caption=text,
-        reply_markup=keyboard_markup
-    )
-    context.bot.delete_message(
-        chat_id=query.message.chat_id,
-        message_id=query.message.message_id,
-    )
-    return 'HANDLE_DESCRIPTION'
+    if update.callback_query.data == 'cart':
+        return show_cart(update, context)
+    else:
+        return show_product(update, context)
 
 
 def handle_cart(update: Update, context: CallbackContext):
@@ -108,9 +154,6 @@ def handle_cart(update: Update, context: CallbackContext):
     db = RedisClient()
     query = update.callback_query
     if query.data == 'menu':
-        context.bot.answer_callback_query(
-            callback_query_id=query.id
-        )
         return start(update, context)
     elif query.data.startswith('del_'):
         product_id = query.data.lstrip('del_')
@@ -126,39 +169,11 @@ def handle_cart(update: Update, context: CallbackContext):
 
 
 def handle_description(update: Update, context: CallbackContext):
-    moltin = MoltinApiClient()
-    db = RedisClient()
     query = update.callback_query
-    user_id = query.from_user.id
-
     if query.data == 'menu':
-        context.bot.answer_callback_query(
-            callback_query_id=query.id
-        )
         return start(update, context)
-
     elif query.data.startswith('buy_'):
-        customer_id = db.client.get(f'customer_{user_id}')
-        if not customer_id:
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text='Похоже вы еще ничего не покупали в Fish-shop. Для создания первого заказа пришлите ваш email.'
-            )
-            return 'HANDLE_EMAIL'
-        else:
-            customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
-
-        _, product_id, quantity = query.data.split('_')
-        moltin.add_product_to_cart(
-            product_id=product_id,
-            quantity=int(quantity),
-            customer_email=customer['data']['email']
-        )
-        context.bot.answer_callback_query(
-            callback_query_id=query.id,
-            text='Добавлено в корзину'
-        )
-        return start(update, context)
+        return add_product_to_cart(update, context)
 
 
 def waiting_email(update: Update, context: CallbackContext):
