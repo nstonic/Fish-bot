@@ -111,7 +111,7 @@ def delete_product_from_cart(update: Update, context: CallbackContext):
     moltin = MoltinApiClient()
     db = RedisClient()
     query = update.callback_query
-    product_id = query.data.lstrip('del_')
+    _, product_id = query.data.split('_')
     customer_id = db.client.get(f'customer_{query.from_user.id}')
     customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
     cart_id = moltin.get_current_cart_id(customer['data']['email'])
