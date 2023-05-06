@@ -107,6 +107,10 @@ def add_product_to_cart(update: Update, context: CallbackContext):
         callback_query_id=query.id,
         text='Добавлено в корзину'
     )
+    context.bot.delete_message(
+        chat_id=user_id,
+        message_id=query.message.message_id,
+    )
     return show_cart(update, context)
 
 
@@ -235,7 +239,8 @@ def handle_users_reply(update: Update, context: CallbackContext):
 
 
 def error_handler(update: Update, context: CallbackContext):
-    tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
+    if 'Message to delete not found' not in context.error:
+        tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
 
 
 def main():
