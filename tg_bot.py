@@ -66,6 +66,7 @@ def show_product(update: Update, context: CallbackContext):
     keyboard = [
         [InlineKeyboardButton(f'{kg} кг', callback_data=f'buy_{product["id"]}_{kg}')
          for kg in [1, 5, 10]],
+        [InlineKeyboardButton('Корзина', callback_data='cart')],
         [InlineKeyboardButton('Назад', callback_data='menu')]
     ]
     keyboard_markup = InlineKeyboardMarkup(keyboard)
@@ -107,11 +108,7 @@ def add_product_to_cart(update: Update, context: CallbackContext):
         callback_query_id=query.id,
         text='Добавлено в корзину'
     )
-    context.bot.delete_message(
-        chat_id=user_id,
-        message_id=query.message.message_id,
-    )
-    return show_cart(update, context)
+    return start(update, context)
 
 
 def delete_product_from_cart(update: Update, context: CallbackContext):
@@ -187,6 +184,8 @@ def handle_description(update: Update, context: CallbackContext):
     query = update.callback_query
     if query.data == 'menu':
         return start(update, context)
+    elif query.data == 'cart':
+        return show_cart(update, context)
     elif query.data.startswith('buy_'):
         return add_product_to_cart(update, context)
 
@@ -239,8 +238,7 @@ def handle_users_reply(update: Update, context: CallbackContext):
 
 
 def error_handler(update: Update, context: CallbackContext):
-    if 'Message to delete not found' not in context.error:
-        tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
+    tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
 
 
 def main():
