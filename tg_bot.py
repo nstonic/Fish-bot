@@ -238,7 +238,8 @@ def handle_users_reply(update: Update, context: CallbackContext):
 
 
 def error_handler(update: Update, context: CallbackContext):
-    tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
+    if 'Message to delete not found' not in context.error:
+        tg_logger.error(msg="Исключение при обработке сообщения в боте DVMNFishBot:", exc_info=context.error)
 
 
 def main():
