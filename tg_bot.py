@@ -21,7 +21,10 @@ def show_cart(update: Update, context: CallbackContext):
     query = update.callback_query
     customer_id = db.client.get(f'customer_{query.from_user.id}')
     cart = None
-    keyboard = [[InlineKeyboardButton('В меню', callback_data='menu')]]
+    keyboard = [
+        [InlineKeyboardButton('Оплатить', callback_data='make_order')],
+        [InlineKeyboardButton('В меню', callback_data='menu')]
+    ]
     if customer_id:
         customer = moltin.get_customer(customer_id=customer_id.decode('utf-8'))
         cart = moltin.get_current_cart(customer['data']['email'])
@@ -87,7 +90,7 @@ def add_product_to_cart(update: Update, context: CallbackContext):
     customer_id = db.client.get(f'customer_{user_id}')
     if not customer_id:
         context.bot.send_message(
-            chat_id=update.effective_chat.id,
+            chat_id=user_id,
             text='Похоже вы еще ничего не покупали в Fish-shop. Для создания первого заказа пришлите ваш email.'
         )
         return 'HANDLE_EMAIL'
@@ -104,7 +107,7 @@ def add_product_to_cart(update: Update, context: CallbackContext):
         callback_query_id=query.id,
         text='Добавлено в корзину'
     )
-    return start(update, context)
+    return show_cart(update, context)
 
 
 def delete_product_from_cart(update: Update, context: CallbackContext):
@@ -120,6 +123,10 @@ def delete_product_from_cart(update: Update, context: CallbackContext):
         product_id=product_id
     )
     return show_cart(update, context)
+
+
+def make_order(update: Update, context: CallbackContext):
+    return start(update, context)
 
 
 def start(update: Update, context: CallbackContext):
@@ -166,6 +173,8 @@ def handle_cart(update: Update, context: CallbackContext):
     query = update.callback_query
     if query.data == 'menu':
         return start(update, context)
+    elif query.data == 'make_order':
+        return make_order(update, context)
     elif query.data.startswith('del_'):
         return delete_product_from_cart(update, context)
 
